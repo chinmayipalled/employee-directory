@@ -1,108 +1,80 @@
-# SPEC.md — Search by Name
+# SPEC.md — Employee Directory
 
-## Feature: Search by Name
+---
+
+## Feature 1: View Employees
+
+### Goal
+Display all active employees from the database when the page loads.
+
+### Acceptance Criteria
+- [ ] All active employees (`IsActive = 1`) are loaded from the database on page load
+- [ ] Each row displays **Full Name** (FirstName + LastName combined)
+- [ ] Each row displays **Department**
+- [ ] Each row displays **Job Title**
+- [ ] Each row displays **Hire Date** formatted as a readable date (e.g. `Mar 15, 2021`)
+- [ ] Each row displays a **Status badge** — green `Active` badge for active employees
+- [ ] Inactive employees (`IsActive = 0`) are **not shown** in the list
+- [ ] A loading state is shown while data is being fetched
+- [ ] If no active employees exist, display: `No employees found.`
+- [ ] Table has clear column headers: Full Name, Department, Job Title, Hire Date, Status
+
+---
+
+## Feature 2: Search Employees
 
 ### Goal
 Allow users to filter the employee table in real time as they type a name, without reloading the page or hitting the server.
 
+### Acceptance Criteria
+- [ ] A search input is visible above the employee table at all times
+- [ ] Placeholder text reads: `Search by name…`
+- [ ] As the user types, the table filters to show only employees whose First Name or Last Name contains the search term (case-insensitive)
+- [ ] Filtering is instant — no submit button, no page reload, no API call per keystroke
+- [ ] Clearing the input restores the full employee list
+- [ ] Searching with only whitespace shows the full list (trimmed empty string = no filter)
+- [ ] If no employees match the search, display: `No employees match your search.`
+- [ ] Search input has `aria-label` of `Search employees by name` for accessibility
+
 ---
+
+## Feature 3: Add Employee
+
+### Goal
+Allow users to add a new employee via a form. The new employee appears in the table immediately after saving.
 
 ### Acceptance Criteria
-
-**Search behavior**
-- [ ] A text input is visible above the employee table at all times.
-- [ ] As the user types, the table instantly filters to show only employees whose `FirstName` or `LastName` contains the search term (case-insensitive).
-- [ ] Filtering happens on the already-loaded employee list in client state — no API call is made per keystroke.
-- [ ] Clearing the search input restores the full employee list.
-- [ ] The search input has a visible placeholder: `Search by name…`
-
-**Edge cases**
-- [ ] Searching with only whitespace returns the full list (treat trimmed empty string as no filter).
-- [ ] If the filtered result is empty, display a message: `No employees match your search.`
-- [ ] Search still works while an add-employee action is in flight (state isolation).
-
-**Performance**
-- [ ] No debounce required — filtering is synchronous on the in-memory array.
-
-**Accessibility**
-- [ ] The search input has an accessible `aria-label` of `Search employees by name`.
+- [ ] An **Add Employee** button is visible above the table
+- [ ] Clicking the button opens a **modal form**
+- [ ] The form collects the following fields:
+  - First Name (required)
+  - Last Name (required)
+  - Email (required, must be valid email format)
+  - Department (required)
+  - Job Title (required)
+  - Hire Date (required)
+- [ ] All fields are validated before submission — empty required fields show an error message
+- [ ] On successful save, the modal closes and the new employee appears in the table without a page reload
+- [ ] The new employee is saved to the database with `IsActive = 1` by default
+- [ ] If the email already exists in the database, display an error: `Email already in use.`
+- [ ] A loading/submitting state is shown on the Save button while the request is in flight
+- [ ] Closing the modal (cancel or X button) discards the form without saving
 
 ---
 
-### Data Contract
+## Feature 4: Deactivate Employee
 
-The feature operates on the `Employee` type (defined in `types/employee.ts`):
+### Goal
+Allow users to mark an employee as inactive. The employee disappears from the table. No record is ever deleted from the database.
 
-```ts
-interface Employee {
-  EmployeeId: number
-  FirstName: string
-  LastName: string
-  Email: string
-  Department: string
-  JobTitle: string
-  HireDate: Date
-  IsActive: boolean
-}
-```
-
-The search filter is applied to `FirstName` and `LastName` only.
-No new fields are needed for this feature.
-
----
-
-### API Contract
-
-**None.** Search is entirely client-side. No new API endpoints are created for this feature.
-
-The employee list is fetched once on page load (covered by the View Employees feature or the initial data load in `page.tsx`). This spec assumes that list is available in a `useState` array on the client.
-
----
-
-### UI Behavior
-
-1. Page loads → full employee list is fetched and stored in `employees` state.
-2. A `searchQuery` state (string, default `""`) is initialized.
-3. The search input is rendered above the table, bound to `searchQuery` via `onChange`.
-4. A derived value `filteredEmployees` is computed on every render:
-   ```ts
-   const filteredEmployees = employees.filter(emp =>
-     `${emp.FirstName} ${emp.LastName}`
-       .toLowerCase()
-       .includes(searchQuery.trim().toLowerCase())
-   )
-   ```
-5. The table renders `filteredEmployees`, not `employees`.
-6. If `filteredEmployees.length === 0` and `searchQuery.trim() !== ""`, render the empty message instead of the table body.
-
-**Component responsibility:**
-- `SearchInput` component — controlled input, emits `onSearch(query: string)` callback.
-- `EmployeeTable` component — receives `employees: Employee[]` as a prop and renders them.
-- `app/page.tsx` — owns `employees` state, `searchQuery` state, and the filter logic.
-
----
-
-### SQL Queries
-
-**None.** This feature adds no new SQL queries. The existing `SELECT` query for loading employees (from View Employees) provides the data.
-
----
-
-### Component Files
-
-| File | Role |
-|---|---|
-| `components/SearchInput.tsx` | Controlled search input with label/aria |
-| `components/EmployeeTable.tsx` | Renders a list of `Employee[]` as a table |
-| `app/page.tsx` | Owns state, filter logic, wires components |
-
----
-
-### Out of Scope
-
-- Server-side search / API search endpoint.
-- Debouncing or throttling.
-- Searching by Department, Job Title, or any field other than name.
-- Highlighting matched characters in the results.
-- Sorting the filtered results.
-- Pagination.
+### Acceptance Criteria
+- [ ] Each employee row has a **Deactivate** button
+- [ ] Clicking Deactivate shows a **confirmation dialog** before taking any action
+- [ ] The confirmation dialog displays: `Are you sure you want to deactivate [Full Name]?`
+- [ ] The dialog has a **Confirm** button and a **Cancel** button
+- [ ] Clicking Cancel closes the dialog and does nothing
+- [ ] Clicking Confirm sets `IsActive = 0` for that employee in the database
+- [ ] After confirmation, the row is **removed from the table** without a page reload
+- [ ] The employee record is **never deleted** from the database — only `IsActive` is updated
+- [ ] A loading state is shown on the Confirm button while the request is in flight
+- [ ] If the deactivation request fails, display an error message and keep the row in the table
