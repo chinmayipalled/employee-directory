@@ -29,6 +29,7 @@
       }
     ]
   },
+  "enabledMcpjsonServers": ["filesystem", "fetch"],
   "env": {
     "NODE_ENV": "development"
   }
