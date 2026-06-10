@@ -1,5 +1,6 @@
 'use client'
 
+import Link from 'next/link'
 import type { Employee } from '@/types/employee'
 
 interface EmployeeTableProps {
@@ -21,7 +22,7 @@ export default function EmployeeTable({ employees, onDeactivate }: EmployeeTable
       <table className="min-w-full divide-y divide-gray-200 text-sm">
         <thead className="bg-gray-50">
           <tr>
-            {['Full Name', 'Department', 'Job Title', 'Hire Date', 'Status', ''].map((header) => (
+            {['Full Name', 'Dept ID', 'Job Title', 'Hire Date', 'Status', ''].map((header) => (
               <th
                 key={header}
                 className="px-6 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider"
@@ -37,7 +38,14 @@ export default function EmployeeTable({ employees, onDeactivate }: EmployeeTable
               <td className="px-6 py-4 font-medium text-gray-900">
                 {employee.FirstName} {employee.LastName}
               </td>
-              <td className="px-6 py-4 text-gray-600">{employee.Department}</td>
+              <td className="px-6 py-4">
+                <Link
+                  href={`/departments/${employee.DeptID}`}
+                  className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-blue-100 text-blue-800 hover:bg-blue-200"
+                >
+                  D-{employee.DeptID}
+                </Link>
+              </td>
               <td className="px-6 py-4 text-gray-600">{employee.JobTitle}</td>
               <td className="px-6 py-4 text-gray-600">{formatDate(employee.HireDate)}</td>
               <td className="px-6 py-4">

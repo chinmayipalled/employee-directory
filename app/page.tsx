@@ -32,6 +32,7 @@ export default function HomePage(): JSX.Element {
         setIsLoading(false)
       }
     }
+
     loadEmployees()
   }, [])
 
@@ -107,6 +108,7 @@ export default function HomePage(): JSX.Element {
             onDeactivate={setEmployeeToDeactivate}
           />
         )}
+
       </div>
 
       {isModalOpen && (

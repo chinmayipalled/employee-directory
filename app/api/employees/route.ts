@@ -39,17 +39,36 @@ export async function POST(request: Request): Promise<NextResponse> {
       return NextResponse.json({ data: null, error: 'Email already in use.' }, { status: 409 })
     }
 
+    const deptLookup = await pool.request()
+      .input('DepartmentName', Department)
+      .query<{ DeptID: number }>(
+        'SELECT DeptID FROM Departments WHERE DepartmentName = @DepartmentName'
+      )
+
+    let deptId: number
+    if (deptLookup.recordset.length > 0) {
+      deptId = deptLookup.recordset[0].DeptID
+    } else {
+      const deptInsert = await pool.request()
+        .input('DepartmentName', Department)
+        .query<{ DeptID: number }>(
+          'INSERT INTO Departments (DepartmentName) OUTPUT INSERTED.DeptID VALUES (@DepartmentName)'
+        )
+      deptId = deptInsert.recordset[0].DeptID
+    }
+
     const insert = await pool.request()
       .input('FirstName', FirstName)
       .input('LastName', LastName)
       .input('Email', Email)
       .input('Department', Department)
+      .input('DeptID', deptId)
       .input('JobTitle', JobTitle)
       .input('HireDate', HireDate)
       .query<Employee>(`
-        INSERT INTO Employees (FirstName, LastName, Email, Department, JobTitle, HireDate, IsActive)
+        INSERT INTO Employees (FirstName, LastName, Email, Department, DeptID, JobTitle, HireDate, IsActive)
         OUTPUT INSERTED.*
-        VALUES (@FirstName, @LastName, @Email, @Department, @JobTitle, @HireDate, 1)
+        VALUES (@FirstName, @LastName, @Email, @Department, @DeptID, @JobTitle, @HireDate, 1)
       `)
 
     return NextResponse.json({ data: insert.recordset[0], error: null }, { status: 201 })
