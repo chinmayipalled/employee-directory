@@ -2,67 +2,54 @@
 
 ## Rule: File locations
 
-All API routes live under `app/api/`. Follow this structure:
-
 ```
-app/
-└── api/
-    └── employees/
-        ├── route.ts           # GET (list), POST (add)
-        └── [id]/
-            └── route.ts       # PATCH (deactivate by ID)
+app/api/
+├── employees/
+│   ├── route.ts          # GET (list active), POST (add)
+│   └── [id]/route.ts     # PATCH (deactivate)
+├── departments/
+│   └── route.ts          # GET (list with employee count)
+└── tickets/
+    └── route.ts          # GET (list, optional ?status and ?priority)
 ```
-
-- `GET /api/employees` — fetch all active employees
-- `POST /api/employees` — add a new employee
-- `PATCH /api/employees/[id]` — deactivate an employee by ID
 
 ---
 
 ## Rule: DB calls go in API routes only — never in components
 
-Components call `fetch('/api/employees')`. They never import `lib/db.ts` directly.
-
-**Wrong:**
 ```ts
-// Inside a React component
-import { getPool } from '@/lib/db'  // ❌ never do this in a component
-```
-
-**Correct:**
-```ts
-// Inside a React component
-const res = await fetch('/api/employees')
-const { data, error } = await res.json()
+// In a component — correct
+const res = await fetch('/api/tickets?status=Open')
+const { data, error }: ApiResponse<Ticket[]> = await res.json()
 ```
 
 ---
 
 ## Rule: Validate input before touching the database
 
-For `POST` and `PATCH` routes, validate the request body first. If validation fails, return `400` immediately — do not open a DB connection.
+For POST/PATCH routes, validate first. If validation fails, return 400 without opening a DB connection.
+
+---
+
+## Rule: Reading optional query params (GET with filters)
 
 ```ts
-export async function POST(request: Request) {
-  const body = await request.json()
-  const { FirstName, LastName, Email, Department, JobTitle, HireDate } = body
+export async function GET(request: Request): Promise<NextResponse> {
+  const { searchParams } = new URL(request.url)
+  const status = searchParams.get('status') ?? undefined
+  const priority = searchParams.get('priority') ?? undefined
 
-  // Validate first
-  if (!FirstName || !LastName || !Email || !Department || !JobTitle || !HireDate) {
-    return NextResponse.json(
-      { data: null, error: 'All fields are required' },
-      { status: 400 }
-    )
+  const VALID_STATUSES = ['Open', 'In Progress', 'Resolved', 'Closed']
+  const VALID_PRIORITIES = ['Low', 'Medium', 'High']
+
+  if (status && !VALID_STATUSES.includes(status)) {
+    return NextResponse.json({ data: null, error: 'Invalid status value' }, { status: 400 })
+  }
+  if (priority && !VALID_PRIORITIES.includes(priority)) {
+    return NextResponse.json({ data: null, error: 'Invalid priority value' }, { status: 400 })
   }
 
-  // Only reach the DB after validation passes
-  try {
-    const pool = await getPool()
-    // ... insert query
-  } catch (err) {
-    console.error(err)
-    return NextResponse.json({ data: null, error: 'Failed to add employee' }, { status: 500 })
-  }
+  // proceed to DB...
 }
 ```
 
@@ -70,10 +57,23 @@ export async function POST(request: Request) {
 
 ## Rule: Route handler export naming
 
-Use named exports matching the HTTP method. Next.js App Router requires this.
+```ts
+export async function GET(request: Request): Promise<NextResponse> { ... }
+export async function POST(request: Request): Promise<NextResponse> { ... }
+export async function PATCH(
+  request: Request,
+  { params }: { params: { id: string } }
+): Promise<NextResponse> { ... }
+```
+
+---
+
+## Rule: Always use the { data, error } envelope
 
 ```ts
-export async function GET(request: Request) { ... }
-export async function POST(request: Request) { ... }
-export async function PATCH(request: Request, { params }: { params: { id: string } }) { ... }
+// Success
+return NextResponse.json({ data: result.recordset, error: null }, { status: 200 })
+
+// Failure
+return NextResponse.json({ data: null, error: 'Failed to fetch tickets' }, { status: 500 })
 ```

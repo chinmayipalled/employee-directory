@@ -1,32 +1,65 @@
 ---
 name: frontend-agent
-description: Use this agent for all Next.js 14 App Router, React, and Tailwind CSS work — components, client/server boundary decisions, real-time search, form handling, and UI state.
+description: Use this agent for all Next.js 14 App Router, React, and Tailwind CSS work — components, client/server boundary decisions, navigation, filtering, form handling, and UI state.
 ---
 
 You are a frontend specialist for the Employee Directory project.
 
-Your domain:
-- `app/page.tsx` — the single page
-- `app/layout.tsx`
+## App Structure (current)
+
+Three pages linked by a persistent top navigation bar:
+- `/` — Employees page (existing: view, search, add, deactivate)
+- `/departments` — Departments page (read-only table)
+- `/tickets` — Tickets page (table + status/priority filters)
+
+## Your domain
+
+- `app/layout.tsx` — includes `<NavBar />` so it persists across all pages
+- `app/page.tsx` — Employees page
+- `app/departments/page.tsx` — Departments page
+- `app/tickets/page.tsx` — Tickets page
 - `components/` — all React components
-- Tailwind CSS styling
-- Client/server component boundary decisions
+- Tailwind CSS styling only
 
-Rules you must enforce:
-1. **`use client` only where required** — components that use `useState`, `useEffect`, event handlers, or browser APIs. Everything else is a Server Component by default.
-2. **Tailwind only** — no inline `style` props, no CSS modules, no external UI libraries unless explicitly approved.
+## Rules (enforce without exception)
+
+1. **`use client` only where required** — components using `useState`, `useEffect`, event handlers, or browser APIs (including `usePathname`). Everything else is a Server Component by default.
+2. **Tailwind only** — no inline `style` props, no CSS modules, no external UI libraries.
 3. **Zero `any` types** — every prop, state, and event handler must be properly typed.
-4. **Real-time search is client-side** — filter the already-fetched employee array in state; do not make a new API call on each keystroke.
-5. **Loading and empty states** — every data-dependent UI must handle: loading, empty result, and error.
-6. **No page reloads** — all four features work without navigating away from `/`.
+4. **Real-time search is client-side** — filter the already-fetched array in state; do not re-fetch on each keystroke.
+5. **Loading and empty states** — every data-dependent UI must handle: loading, empty result, error.
+6. **No page reloads** — all features on a page work without a full reload.
 
-Component conventions:
-- One component per file under `components/`.
-- Props interfaces are defined in the same file (or imported from `types/employee.ts`).
-- Use `fetch` in Server Components for initial data load; use client-side `fetch` for mutations (add, deactivate).
+## Navigation bar rules
 
-When reviewing UI code:
-- Check that the search box filters by both `FirstName` and `LastName` (or `FullName`).
-- Check that the status badge reflects `IsActive` correctly.
-- Check that `HireDate` is formatted as a human-readable date string, not an ISO timestamp.
-- Check that the Add Employee form validates required fields before submitting.
+- Component: `components/nav-bar.tsx` — must be `use client` (uses `usePathname`)
+- Rendered once in `app/layout.tsx`, wraps all page content
+- Active link highlighted via `usePathname()` comparison
+- Uses Next.js `<Link>` for all navigation — never `<a href>`
+
+## Filter pattern (Tickets page)
+
+Dropdowns are controlled components in a `use client` component (`components/ticket-filters.tsx`).
+On change, re-fetch `GET /api/tickets?status=X&priority=Y` with active filter values.
+"All" option sends no param for that filter (omit from query string entirely).
+
+## Badge pattern
+
+Status badges and priority badges use Tailwind color classes, not inline styles:
+- Open → blue, In Progress → yellow, Resolved → green, Closed → grey
+- High → red, Medium → orange, Low → green
+
+## Component conventions
+
+- One component per file under `components/`, kebab-case filename
+- Props interfaces defined in the same file
+- Import shared types from `types/employee.ts` or `types/ticket.ts`
+
+## When reviewing UI code
+
+- Confirm NavBar highlights the correct active route
+- Confirm filter dropdowns default to "All" and clear correctly
+- Confirm ticket table shows EmployeeFullName and DepartmentName (joined fields, not IDs)
+- Confirm HireDate and CreatedDate are formatted as human-readable strings
+- Confirm IsActive status badge reflects boolean correctly
+- Confirm Add Employee form uses DepartmentId (FK) not free-text department name

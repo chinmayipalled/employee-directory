@@ -1,5 +1,6 @@
 import type { Metadata } from 'next'
 import './globals.css'
+import NavBar from '@/components/nav-bar'
 
 export const metadata: Metadata = {
   title: 'Employee Directory',
@@ -13,7 +14,10 @@ export default function RootLayout({
 }): JSX.Element {
   return (
     <html lang="en">
-      <body>{children}</body>
+      <body className="bg-gray-50 min-h-screen">
+        <NavBar />
+        {children}
+      </body>
     </html>
   )
 }

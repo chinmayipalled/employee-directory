@@ -37,7 +37,7 @@ export default function EmployeeTable({ employees, onDeactivate }: EmployeeTable
               <td className="px-6 py-4 font-medium text-gray-900">
                 {employee.FirstName} {employee.LastName}
               </td>
-              <td className="px-6 py-4 text-gray-600">{employee.Department}</td>
+              <td className="px-6 py-4 text-gray-600">{employee.DepartmentName}</td>
               <td className="px-6 py-4 text-gray-600">{employee.JobTitle}</td>
               <td className="px-6 py-4 text-gray-600">{formatDate(employee.HireDate)}</td>
               <td className="px-6 py-4">

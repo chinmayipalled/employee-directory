@@ -1,7 +1,8 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import type { NewEmployeePayload, Employee, ApiResponse } from '@/types/employee'
+import type { Department } from '@/types/department'
 
 interface AddEmployeeModalProps {
   onClose: () => void
@@ -12,19 +13,33 @@ const emptyForm: NewEmployeePayload = {
   FirstName: '',
   LastName: '',
   Email: '',
-  Department: '',
+  DepartmentId: 0,
   JobTitle: '',
   HireDate: '',
 }
 
 export default function AddEmployeeModal({ onClose, onSuccess }: AddEmployeeModalProps): JSX.Element {
   const [form, setForm] = useState<NewEmployeePayload>(emptyForm)
-  const [errors, setErrors] = useState<Partial<NewEmployeePayload>>({})
+  const [departments, setDepartments] = useState<Department[]>([])
+  const [errors, setErrors] = useState<Partial<Record<keyof NewEmployeePayload, string>>>({})
   const [serverError, setServerError] = useState<string | null>(null)
   const [isSubmitting, setIsSubmitting] = useState(false)
 
+  useEffect(() => {
+    async function loadDepartments(): Promise<void> {
+      try {
+        const res = await fetch('/api/departments')
+        const { data }: ApiResponse<Department[]> = await res.json()
+        if (data) setDepartments(data)
+      } catch {
+        // non-critical — form still shows, dept dropdown just empty
+      }
+    }
+    loadDepartments()
+  }, [])
+
   function validate(): boolean {
-    const next: Partial<NewEmployeePayload> = {}
+    const next: Partial<Record<keyof NewEmployeePayload, string>> = {}
     if (!form.FirstName.trim()) next.FirstName = 'Required'
     if (!form.LastName.trim()) next.LastName = 'Required'
     if (!form.Email.trim()) {
@@ -32,7 +47,7 @@ export default function AddEmployeeModal({ onClose, onSuccess }: AddEmployeeModa
     } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.Email)) {
       next.Email = 'Invalid email'
     }
-    if (!form.Department.trim()) next.Department = 'Required'
+    if (!form.DepartmentId) next.DepartmentId = 'Required'
     if (!form.JobTitle.trim()) next.JobTitle = 'Required'
     if (!form.HireDate) next.HireDate = 'Required'
     setErrors(next)
@@ -52,12 +67,10 @@ export default function AddEmployeeModal({ onClose, onSuccess }: AddEmployeeModa
         body: JSON.stringify(form),
       })
       const { data, error }: ApiResponse<Employee> = await res.json()
-
       if (error || !data) {
         setServerError(error ?? 'Something went wrong')
         return
       }
-
       onSuccess(data)
     } finally {
       setIsSubmitting(false)
@@ -65,18 +78,10 @@ export default function AddEmployeeModal({ onClose, onSuccess }: AddEmployeeModa
   }
 
   function handleChange(field: keyof NewEmployeePayload, value: string): void {
-    setForm((prev) => ({ ...prev, [field]: value }))
+    const parsed = field === 'DepartmentId' ? parseInt(value, 10) || 0 : value
+    setForm((prev) => ({ ...prev, [field]: parsed }))
     setErrors((prev) => ({ ...prev, [field]: undefined }))
   }
-
-  const fields: { key: keyof NewEmployeePayload; label: string; type: string }[] = [
-    { key: 'FirstName', label: 'First Name', type: 'text' },
-    { key: 'LastName', label: 'Last Name', type: 'text' },
-    { key: 'Email', label: 'Email', type: 'email' },
-    { key: 'Department', label: 'Department', type: 'text' },
-    { key: 'JobTitle', label: 'Job Title', type: 'text' },
-    { key: 'HireDate', label: 'Hire Date', type: 'date' },
-  ]
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
@@ -89,12 +94,14 @@ export default function AddEmployeeModal({ onClose, onSuccess }: AddEmployeeModa
         </div>
 
         <form onSubmit={handleSubmit} noValidate className="space-y-4">
-          {fields.map(({ key, label, type }) => (
+          {(['FirstName', 'LastName', 'Email', 'JobTitle'] as const).map((key) => (
             <div key={key}>
-              <label className="block text-sm font-medium text-gray-700 mb-1">{label}</label>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                {key === 'FirstName' ? 'First Name' : key === 'LastName' ? 'Last Name' : key === 'JobTitle' ? 'Job Title' : key}
+              </label>
               <input
-                type={type}
-                value={form[key]}
+                type={key === 'Email' ? 'email' : 'text'}
+                value={form[key] as string}
                 onChange={(e) => handleChange(key, e.target.value)}
                 className={`w-full px-3 py-2 border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 ${
                   errors[key] ? 'border-red-400' : 'border-gray-300'
@@ -103,6 +110,38 @@ export default function AddEmployeeModal({ onClose, onSuccess }: AddEmployeeModa
               {errors[key] && <p className="text-xs text-red-500 mt-1">{errors[key]}</p>}
             </div>
           ))}
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Department</label>
+            <select
+              value={form.DepartmentId || ''}
+              onChange={(e) => handleChange('DepartmentId', e.target.value)}
+              className={`w-full px-3 py-2 border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 ${
+                errors.DepartmentId ? 'border-red-400' : 'border-gray-300'
+              }`}
+            >
+              <option value="">Select department…</option>
+              {departments.map((d) => (
+                <option key={d.DepartmentId} value={d.DepartmentId}>
+                  {d.DepartmentName}
+                </option>
+              ))}
+            </select>
+            {errors.DepartmentId && <p className="text-xs text-red-500 mt-1">{errors.DepartmentId}</p>}
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Hire Date</label>
+            <input
+              type="date"
+              value={form.HireDate}
+              onChange={(e) => handleChange('HireDate', e.target.value)}
+              className={`w-full px-3 py-2 border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 ${
+                errors.HireDate ? 'border-red-400' : 'border-gray-300'
+              }`}
+            />
+            {errors.HireDate && <p className="text-xs text-red-500 mt-1">{errors.HireDate}</p>}
+          </div>
 
           {serverError && (
             <p className="text-sm text-red-600 bg-red-50 px-3 py-2 rounded-lg">{serverError}</p>

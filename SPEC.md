@@ -1,80 +1,266 @@
-# SPEC.md — Employee Directory
+# Feature: Departments, Tickets & Navigation
 
 ---
 
-## Feature 1: View Employees
+## Goal
 
-### Goal
-Display all active employees from the database when the page loads.
-
-### Acceptance Criteria
-- [ ] All active employees (`IsActive = 1`) are loaded from the database on page load
-- [ ] Each row displays **Full Name** (FirstName + LastName combined)
-- [ ] Each row displays **Department**
-- [ ] Each row displays **Job Title**
-- [ ] Each row displays **Hire Date** formatted as a readable date (e.g. `Mar 15, 2021`)
-- [ ] Each row displays a **Status badge** — green `Active` badge for active employees
-- [ ] Inactive employees (`IsActive = 0`) are **not shown** in the list
-- [ ] A loading state is shown while data is being fetched
-- [ ] If no active employees exist, display: `No employees found.`
-- [ ] Table has clear column headers: Full Name, Department, Job Title, Hire Date, Status
+Extend the Employee Directory into a three-page app — Employees, Departments, and Tickets — linked by a top navigation bar, with a relational schema where employees belong to a department and tickets are assigned to employees.
 
 ---
 
-## Feature 2: Search Employees
+## Acceptance Criteria
 
-### Goal
-Allow users to filter the employee table in real time as they type a name, without reloading the page or hitting the server.
+### Schema Migration
+- The `Department` (NVARCHAR) column is removed from the `Employees` table.
+- A `DepartmentId` (INT, FK) column replaces it, referencing `Departments.DepartmentId`.
+- Existing employee rows are migrated: each distinct department name becomes a row in `Departments`, and `Employees.DepartmentId` is populated accordingly.
+- The `Tickets` table is created with all required columns.
+- All foreign key constraints are enforced at the database level.
 
-### Acceptance Criteria
-- [ ] A search input is visible above the employee table at all times
-- [ ] Placeholder text reads: `Search by name…`
-- [ ] As the user types, the table filters to show only employees whose First Name or Last Name contains the search term (case-insensitive)
-- [ ] Filtering is instant — no submit button, no page reload, no API call per keystroke
-- [ ] Clearing the input restores the full employee list
-- [ ] Searching with only whitespace shows the full list (trimmed empty string = no filter)
-- [ ] If no employees match the search, display: `No employees match your search.`
-- [ ] Search input has `aria-label` of `Search employees by name` for accessibility
+### Navigation Bar
+- A persistent top navigation bar appears on every page.
+- It contains three links: **Employees**, **Departments**, **Tickets**.
+- The active page link is visually highlighted.
+- Clicking a link navigates to that page without a full reload (Next.js client-side routing).
 
----
+### Departments Page (`/departments`)
+- Displays a table of all departments: Department ID and Department Name.
+- Shows the count of active employees in each department.
+- If no departments exist, shows an empty state message.
 
-## Feature 3: Add Employee
+### Tickets Page (`/tickets`)
+- Displays a table of all tickets with columns: **Title**, **Assigned Employee** (full name), **Department** (via join through Employee), **Status**, **Priority**, **Created Date**.
+- A **Status** dropdown filters the table: All / Open / In Progress / Resolved / Closed. Defaults to All.
+- A **Priority** dropdown filters the table: All / Low / Medium / High. Defaults to All.
+- Both filters can be applied simultaneously.
+- If no tickets match the active filters, shows an empty state message ("No tickets found").
+- If the ticket list fails to load, shows an inline error message.
+- Tickets are sorted by CreatedDate descending (newest first) by default.
 
-### Goal
-Allow users to add a new employee via a form. The new employee appears in the table immediately after saving.
-
-### Acceptance Criteria
-- [ ] An **Add Employee** button is visible above the table
-- [ ] Clicking the button opens a **modal form**
-- [ ] The form collects the following fields:
-  - First Name (required)
-  - Last Name (required)
-  - Email (required, must be valid email format)
-  - Department (required)
-  - Job Title (required)
-  - Hire Date (required)
-- [ ] All fields are validated before submission — empty required fields show an error message
-- [ ] On successful save, the modal closes and the new employee appears in the table without a page reload
-- [ ] The new employee is saved to the database with `IsActive = 1` by default
-- [ ] If the email already exists in the database, display an error: `Email already in use.`
-- [ ] A loading/submitting state is shown on the Save button while the request is in flight
-- [ ] Closing the modal (cancel or X button) discards the form without saving
+### Edge Cases
+- A department with no employees still appears in the Departments table with a count of 0.
+- A ticket assigned to an inactive employee still appears in the Tickets table.
+- Dropdowns show "All" as the default selected option and reset the filter when selected.
 
 ---
 
-## Feature 4: Deactivate Employee
+## Data Contract
 
-### Goal
-Allow users to mark an employee as inactive. The employee disappears from the table. No record is ever deleted from the database.
+### Departments Table
+| Column | SQL Type | Required | Notes |
+|--------|----------|----------|-------|
+| DepartmentId | INT IDENTITY PK | yes | auto-generated |
+| DepartmentName | NVARCHAR(100) | yes | must be unique |
 
-### Acceptance Criteria
-- [ ] Each employee row has a **Deactivate** button
-- [ ] Clicking Deactivate shows a **confirmation dialog** before taking any action
-- [ ] The confirmation dialog displays: `Are you sure you want to deactivate [Full Name]?`
-- [ ] The dialog has a **Confirm** button and a **Cancel** button
-- [ ] Clicking Cancel closes the dialog and does nothing
-- [ ] Clicking Confirm sets `IsActive = 0` for that employee in the database
-- [ ] After confirmation, the row is **removed from the table** without a page reload
-- [ ] The employee record is **never deleted** from the database — only `IsActive` is updated
-- [ ] A loading state is shown on the Confirm button while the request is in flight
-- [ ] If the deactivation request fails, display an error message and keep the row in the table
+### Employees Table (modified)
+| Column | Change |
+|--------|--------|
+| Department (NVARCHAR) | **removed** |
+| DepartmentId (INT FK) | **added** — references Departments.DepartmentId, NOT NULL |
+
+### Tickets Table
+| Column | SQL Type | Required | Notes |
+|--------|----------|----------|-------|
+| TicketId | INT IDENTITY PK | yes | auto-generated |
+| Title | NVARCHAR(200) | yes | |
+| Description | NVARCHAR(1000) | no | nullable |
+| EmployeeId | INT FK | yes | references Employees.EmployeeId |
+| Status | NVARCHAR(50) | yes | one of: Open, In Progress, Resolved, Closed |
+| Priority | NVARCHAR(20) | yes | one of: Low, Medium, High |
+| CreatedDate | DATETIME | yes | default GETDATE() |
+
+### TypeScript Types
+
+```ts
+interface Department {
+  DepartmentId: number
+  DepartmentName: string
+  EmployeeCount: number   // computed, not a column
+}
+
+interface Ticket {
+  TicketId: number
+  Title: string
+  Description: string | null
+  EmployeeId: number
+  EmployeeFullName: string   // computed via join
+  DepartmentName: string     // computed via join
+  Status: 'Open' | 'In Progress' | 'Resolved' | 'Closed'
+  Priority: 'Low' | 'Medium' | 'High'
+  CreatedDate: string
+}
+```
+
+---
+
+## API Contract
+
+### GET `/api/departments`
+Returns all departments with active employee count.
+
+**Response:**
+```ts
+ApiResponse<Department[]>
+```
+
+**Errors:**
+- `500` — `{ data: null, error: 'Failed to fetch departments' }`
+
+---
+
+### GET `/api/tickets`
+Returns all tickets. Accepts optional query params for filtering.
+
+**Query params:**
+| Param | Type | Values |
+|-------|------|--------|
+| status | string | Open \| In Progress \| Resolved \| Closed |
+| priority | string | Low \| Medium \| High |
+
+Both params are optional. Omitting them returns all tickets.
+
+**Response:**
+```ts
+ApiResponse<Ticket[]>
+```
+
+**Errors:**
+- `400` — `{ data: null, error: 'Invalid status value' }`
+- `400` — `{ data: null, error: 'Invalid priority value' }`
+- `500` — `{ data: null, error: 'Failed to fetch tickets' }`
+
+---
+
+## UI Behavior
+
+### Navigation Bar (`components/nav-bar.tsx`)
+- Rendered inside `app/layout.tsx` so it persists across all pages.
+- Contains links: `Employees → /`, `Departments → /departments`, `Tickets → /tickets`.
+- Uses Next.js `<Link>` for client-side navigation.
+- Active link detected via `usePathname()` hook and styled with a distinct color/underline.
+
+### Departments Page (`app/departments/page.tsx`)
+- On load, fetches `GET /api/departments`.
+- Renders a table with columns: Department ID, Department Name, Active Employees.
+- Shows a loading skeleton while fetching.
+- Shows an empty state if the array is empty.
+
+### Tickets Page (`app/tickets/page.tsx`)
+- On load, fetches `GET /api/tickets` (no filters).
+- Renders two dropdowns above the table: **Status** and **Priority** (`components/ticket-filters.tsx`).
+- On dropdown change, re-fetches `GET /api/tickets?status=X&priority=Y` with whichever params are active.
+- Renders results in `components/ticket-table.tsx` with columns: Title, Assigned Employee, Department, Status, Priority, Created Date.
+- Status is displayed as a color-coded badge (Open = blue, In Progress = yellow, Resolved = green, Closed = grey).
+- Priority is displayed as a badge (High = red, Medium = orange, Low = green).
+- Shows empty state if no results match filters.
+
+---
+
+## SQL Queries
+
+### Migration — create Departments and populate from existing Employee data
+```sql
+CREATE TABLE Departments (
+  DepartmentId   INT           IDENTITY(1,1) PRIMARY KEY,
+  DepartmentName NVARCHAR(100) NOT NULL UNIQUE
+);
+
+INSERT INTO Departments (DepartmentName)
+SELECT DISTINCT Department FROM Employees ORDER BY Department;
+
+ALTER TABLE Employees ADD DepartmentId INT NULL;
+
+UPDATE e
+SET e.DepartmentId = d.DepartmentId
+FROM Employees e
+JOIN Departments d ON e.Department = d.DepartmentName;
+
+ALTER TABLE Employees ALTER COLUMN DepartmentId INT NOT NULL;
+
+ALTER TABLE Employees
+  ADD CONSTRAINT FK_Employees_Departments
+  FOREIGN KEY (DepartmentId) REFERENCES Departments(DepartmentId);
+
+ALTER TABLE Employees DROP COLUMN Department;
+```
+
+### Migration — create Tickets table
+```sql
+CREATE TABLE Tickets (
+  TicketId    INT            IDENTITY(1,1) PRIMARY KEY,
+  Title       NVARCHAR(200)  NOT NULL,
+  Description NVARCHAR(1000) NULL,
+  EmployeeId  INT            NOT NULL,
+  Status      NVARCHAR(50)   NOT NULL DEFAULT 'Open',
+  Priority    NVARCHAR(20)   NOT NULL DEFAULT 'Medium',
+  CreatedDate DATETIME       NOT NULL DEFAULT GETDATE(),
+  CONSTRAINT FK_Tickets_Employees FOREIGN KEY (EmployeeId)
+    REFERENCES Employees(EmployeeId)
+);
+```
+
+### GET /api/departments
+```sql
+SELECT
+  d.DepartmentId,
+  d.DepartmentName,
+  COUNT(e.EmployeeId) AS EmployeeCount
+FROM Departments d
+LEFT JOIN Employees e
+  ON e.DepartmentId = d.DepartmentId AND e.IsActive = 1
+GROUP BY d.DepartmentId, d.DepartmentName
+ORDER BY d.DepartmentName;
+```
+
+### GET /api/tickets (no filters)
+```sql
+SELECT
+  t.TicketId,
+  t.Title,
+  t.Description,
+  t.EmployeeId,
+  e.FirstName + ' ' + e.LastName AS EmployeeFullName,
+  d.DepartmentName,
+  t.Status,
+  t.Priority,
+  t.CreatedDate
+FROM Tickets t
+JOIN Employees e ON t.EmployeeId = e.EmployeeId
+JOIN Departments d ON e.DepartmentId = d.DepartmentId
+ORDER BY t.CreatedDate DESC;
+```
+
+### GET /api/tickets?status=Open&priority=High
+```sql
+SELECT
+  t.TicketId,
+  t.Title,
+  t.Description,
+  t.EmployeeId,
+  e.FirstName + ' ' + e.LastName AS EmployeeFullName,
+  d.DepartmentName,
+  t.Status,
+  t.Priority,
+  t.CreatedDate
+FROM Tickets t
+JOIN Employees e ON t.EmployeeId = e.EmployeeId
+JOIN Departments d ON e.DepartmentId = d.DepartmentId
+WHERE t.Status = @Status
+  AND t.Priority = @Priority
+ORDER BY t.CreatedDate DESC;
+```
+*(Each filter is only added to the WHERE clause when the corresponding query param is present.)*
+
+---
+
+## Out of Scope
+
+- Adding, editing, or deleting departments from the UI (read-only for now)
+- Adding or editing tickets from the UI (read-only for now)
+- Updating ticket status from the UI
+- Deleting tickets
+- Pagination on the tickets or departments table
+- Sorting tickets by columns other than CreatedDate
+- Real-time ticket updates / websockets
+- Assigning tickets to multiple employees
+- Any changes to the existing Add Employee or Deactivate Employee features
