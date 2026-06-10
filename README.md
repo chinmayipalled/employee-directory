@@ -1,13 +1,33 @@
 # Employee Directory
 
-A single-page Employee Directory web app built with Next.js 14, TypeScript, Tailwind CSS, and SQL Server.
+A multi-page Employee Directory web app built with Next.js 14, TypeScript, Tailwind CSS, and SQL Server. Manages employees, departments, and support tickets with a relational schema.
+
+## Pages
+
+| Page | Route | Description |
+|------|-------|-------------|
+| Employees | `/` | View, search, add, and deactivate employees |
+| Departments | `/departments` | View all departments with active employee counts |
+| Tickets | `/tickets` | View and filter support tickets by status and priority |
 
 ## Features
 
-- **View employees** — all active employees load on page start with Full Name, Department, Job Title, Hire Date, and status badge
-- **Search by name** — real-time client-side filter as you type, no page reload
-- **Add employee** — modal form to add a new employee; appears in the table immediately after saving
-- **Deactivate employee** — confirmation dialog marks the employee inactive; row disappears from the table (no record is ever deleted)
+### Employees
+- View all active employees — Full Name, Department, Job Title, Hire Date, status badge
+- Real-time search by name as you type (client-side, no reload)
+- Add employee via modal form with department dropdown
+- Deactivate employee via confirmation dialog (record is never deleted, only marked inactive)
+
+### Departments
+- View all departments with active employee count per department
+- Departments with zero employees are shown
+
+### Tickets
+- View all tickets with Assigned Employee, Department (via join), Status, and Priority
+- Filter by **Status** — Open, In Progress, Resolved, Closed
+- Filter by **Priority** — Low, Medium, High
+- Both filters apply simultaneously
+- Color-coded badges for Status and Priority
 
 ## Tech Stack
 
@@ -16,21 +36,40 @@ A single-page Employee Directory web app built with Next.js 14, TypeScript, Tail
 | Framework | Next.js 14 — App Router |
 | Language | TypeScript (strict, zero `any`) |
 | Styling | Tailwind CSS |
-| Database | SQL Server via `mssql` — no ORM |
+| Database | SQL Server via `mssql` — no ORM, parameterized queries only |
+
+## Database Schema
+
+```
+Departments        Employees              Tickets
+─────────────      ────────────────────   ──────────────────
+DepartmentId  ──── DepartmentId (FK)      TicketId
+DepartmentName     EmployeeId        ──── EmployeeId (FK)
+                   FirstName              Title
+                   LastName               Description
+                   Email                  Status
+                   JobTitle               Priority
+                   HireDate               CreatedDate
+                   IsActive
+```
 
 ## Prerequisites
 
 - Node.js 18+
-- SQL Server (any edition) with a database named `EmployeeDirectory`
-- The `Employees` table created via `database/setup.sql`
+- SQL Server (any edition) with TCP enabled
+- Mixed-mode authentication enabled on the SQL Server instance
 
 ## Getting Started
 
-### 1. Create the database
+### 1. Create the database and schema
 
-Run `database/setup.sql` in SSMS or `sqlcmd` against your SQL Server instance. This creates the `Employees` table and inserts 10 sample rows.
+Run `database/setup.sql` in SSMS — creates the `Employees` table and inserts 10 sample rows.
 
-### 2. Create a SQL login for the app
+Then run `database/migrate-001-departments-tickets.sql` — creates `Departments` and `Tickets` tables, migrates existing employee department data to use FK references, and inserts 10 sample tickets.
+
+### 2. Enable SQL Server auth and create an app login
+
+If SQL Server is Windows-auth only, enable mixed-mode first (requires service restart), then:
 
 ```sql
 CREATE LOGIN emp_app WITH PASSWORD = 'your_password';
@@ -38,6 +77,8 @@ USE EmployeeDirectory;
 CREATE USER emp_app FOR LOGIN emp_app;
 ALTER ROLE db_datareader ADD MEMBER emp_app;
 ALTER ROLE db_datawriter ADD MEMBER emp_app;
+GRANT SELECT ON Departments TO emp_app;
+GRANT SELECT ON Tickets TO emp_app;
 ```
 
 ### 3. Configure environment variables
@@ -66,20 +107,39 @@ Open [http://localhost:3000](http://localhost:3000).
 ```
 employee-directory/
 ├── app/
-│   ├── page.tsx                  # single page — root UI
-│   ├── layout.tsx
-│   ├── globals.css
-│   └── api/employees/
-│       ├── route.ts              # GET (list), POST (add)
-│       └── [id]/route.ts         # PATCH (deactivate)
+│   ├── layout.tsx                    # root layout — includes NavBar
+│   ├── page.tsx                      # / — Employees page
+│   ├── departments/
+│   │   ├── page.tsx                  # /departments
+│   │   └── loading.tsx               # loading skeleton
+│   ├── tickets/
+│   │   └── page.tsx                  # /tickets
+│   └── api/
+│       ├── employees/
+│       │   ├── route.ts              # GET (list), POST (add)
+│       │   └── [id]/route.ts         # PATCH (deactivate)
+│       ├── departments/
+│       │   └── route.ts              # GET (list with employee count)
+│       └── tickets/
+│           └── route.ts              # GET (list, ?status and ?priority filters)
 ├── components/
+│   ├── nav-bar.tsx                   # top navigation bar
 │   ├── employee-table.tsx
 │   ├── search-input.tsx
 │   ├── add-employee-modal.tsx
-│   └── deactivate-dialog.tsx
-├── lib/db.ts                     # mssql connection pool
-├── types/employee.ts             # shared TypeScript interfaces
-└── database/setup.sql            # DB setup script
+│   ├── deactivate-dialog.tsx
+│   ├── department-table.tsx
+│   ├── ticket-table.tsx
+│   └── ticket-filters.tsx
+├── lib/
+│   └── db.ts                         # mssql connection pool
+├── types/
+│   ├── employee.ts
+│   ├── department.ts
+│   └── ticket.ts
+└── database/
+    ├── setup.sql                     # initial schema + seed data
+    └── migrate-001-departments-tickets.sql
 ```
 
 ## Scripts
