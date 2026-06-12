@@ -19,25 +19,13 @@ export class TicketsService {
   constructor(@Inject(SQL_POOL) private readonly pool: sql.ConnectionPool) {}
 
   async findAll(status?: string, priority?: string): Promise<TicketRow[]> {
-    const request = this.pool.request()
-    request.input('filterStatus', sql.NVarChar, status ?? null)
-    request.input('filterPriority', sql.NVarChar, priority ?? null)
+    const result = await this.pool.request()
+      .input('FilterStatus',   sql.NVarChar, status   ?? null)
+      .input('FilterPriority', sql.NVarChar, priority ?? null)
+      .query<TicketRow>(
+        'EXEC usp_GetTickets @FilterStatus=@FilterStatus, @FilterPriority=@FilterPriority'
+      )
 
-    const result = await request.query<TicketRow>(`
-      SELECT
-        t.TicketId, t.Title, t.Description, t.Status, t.Priority,
-        t.EmployeeId,
-        e.FirstName + ' ' + e.LastName AS EmployeeFullName,
-        d.DepartmentName,
-        t.CreatedDate
-      FROM Tickets t
-      JOIN Employees e ON t.EmployeeId = e.EmployeeId
-      JOIN Departments d ON e.DepartmentId = d.DepartmentId
-      WHERE
-        (@filterStatus IS NULL OR t.Status = @filterStatus)
-        AND (@filterPriority IS NULL OR t.Priority = @filterPriority)
-      ORDER BY t.CreatedDate DESC
-    `)
     return result.recordset
   }
 }

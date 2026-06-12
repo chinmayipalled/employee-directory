@@ -13,16 +13,7 @@ export class DepartmentsService {
   constructor(@Inject(SQL_POOL) private readonly pool: sql.ConnectionPool) {}
 
   async findAll(): Promise<DepartmentRow[]> {
-    const result = await this.pool.request().query<DepartmentRow>(`
-      SELECT
-        d.DepartmentId,
-        d.DepartmentName,
-        COUNT(e.EmployeeId) AS ActiveEmployeeCount
-      FROM Departments d
-      LEFT JOIN Employees e ON e.DepartmentId = d.DepartmentId AND e.IsActive = 1
-      GROUP BY d.DepartmentId, d.DepartmentName
-      ORDER BY d.DepartmentName
-    `)
+    const result = await this.pool.request().query<DepartmentRow>('EXEC usp_GetDepartments')
     return result.recordset
   }
 }
